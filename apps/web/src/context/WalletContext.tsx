@@ -18,7 +18,6 @@ import {
 } from "viem";
 import { avalanche, avalancheFuji } from "viem/chains";
 
-// Local anvil chain configuration
 const anvilChain: Chain = {
   id: LOCAL_ANVIL_CHAIN_ID,
   name: "Local Anvil L1",
@@ -34,7 +33,7 @@ const getViemChain = (cid: number): Chain => {
   return avalanche;
 };
 
-export type WalletProviderType = "metamask" | "core" | "injected" | "demo";
+export type WalletProviderType = "metamask" | "core" | "injected" | "none";
 
 interface WalletContextType {
   account: `0x${string}` | null;
@@ -50,7 +49,7 @@ interface WalletContextType {
   walletClient: WalletClient | null;
   setActiveRole: (role: PersonaRole) => void;
   selectDemoAccount: (id: string) => void;
-  connectInjectedWallet: () => Promise<void>;
+  connectInjectedWallet: (preferredWallet?: "core" | "metamask") => Promise<void>;
   connectWallet: (customAddress?: `0x${string}`, targetChainId?: number) => void;
   disconnectWallet: () => void;
   switchNetwork: (targetChainId: number) => Promise<void>;
@@ -61,10 +60,12 @@ const WalletContext = createContext<WalletContextType | undefined>(undefined);
 export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeAccount, setActiveAccount] = useState<DemoAccount>(DEMO_ACCOUNTS[0]);
   const [activeRole, setActiveRoleState] = useState<PersonaRole>("employer");
-  const [chainId, setChainId] = useState<number>(AVALANCHE_MAINNET_CHAIN_ID);
-  const [isConnected, setIsConnected] = useState<boolean>(true);
+  const [chainId, setChainId] = useState<number>(AVALANCHE_FUJI_CHAIN_ID);
+  
+  // Default to disconnected so user must click Connect Wallet or pick account
+  const [isConnected, setIsConnected] = useState<boolean>(false);
   const [networkError, setNetworkError] = useState<string | null>(null);
-  const [walletProviderType, setWalletProviderType] = useState<WalletProviderType>("demo");
+  const [walletProviderType, setWalletProviderType] = useState<WalletProviderType>("none");
   const [realAddress, setRealAddress] = useState<`0x${string}` | null>(null);
 
   const [publicClient, setPublicClient] = useState<PublicClient | null>(null);
@@ -72,7 +73,6 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const isNetworkValid = (SUPPORTED_CHAIN_IDS as readonly number[]).includes(chainId);
 
-  // Initialize public client whenever chainId changes
   useEffect(() => {
     const chain = getViemChain(chainId);
     const client = createPublicClient({
@@ -84,16 +84,15 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setPublicClient(client);
   }, [chainId]);
 
-  // Handle Ethereum provider events (MetaMask, Core, Rabby)
   useEffect(() => {
     if (typeof window === "undefined" || !(window as any).ethereum) return;
     const ethereum = (window as any).ethereum;
 
     const handleAccountsChanged = (accounts: string[]) => {
-      if (accounts.length === 0) {
+      if (!accounts || accounts.length === 0) {
         setIsConnected(false);
         setRealAddress(null);
-        setWalletProviderType("demo");
+        setWalletProviderType("none");
       } else {
         const addr = accounts[0] as `0x${string}`;
         setRealAddress(addr);
@@ -123,7 +122,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const setActiveRole = (role: PersonaRole) => {
     setActiveRoleState(role);
     const matched = DEMO_ACCOUNTS.find((a) => a.role === role);
-    if (matched) {
+    if (matched && !realAddress) {
       setActiveAccount(matched);
     }
   };
@@ -133,28 +132,56 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (acc) {
       setActiveAccount(acc);
       setActiveRoleState(acc.role);
-      setWalletProviderType("demo");
+      setWalletProviderType("none");
       setRealAddress(null);
       setIsConnected(true);
     }
   };
 
-  const connectInjectedWallet = async () => {
-    if (typeof window === "undefined" || !(window as any).ethereum) {
-      alert("No Web3 wallet found! Please install MetaMask or Avalanche Core wallet.");
+  /**
+   * Resolves Core Wallet vs MetaMask provider cleanly
+   */
+  const resolveInjectedProvider = (preferred?: "core" | "metamask") => {
+    if (typeof window === "undefined") return null;
+    const w = window as any;
+
+    if (preferred === "core") {
+      if (w.avalanche) return w.avalanche;
+      if (w.ethereum?.isAvalanche || w.ethereum?.isCore) return w.ethereum;
+    }
+
+    if (preferred === "metamask") {
+      if (w.ethereum?.providers) {
+        const mm = w.ethereum.providers.find((p: any) => p.isMetaMask && !p.isAvalanche && !p.isCore);
+        if (mm) return mm;
+      }
+      if (w.ethereum?.isMetaMask) return w.ethereum;
+    }
+
+    return w.avalanche || w.ethereum || null;
+  };
+
+  const connectInjectedWallet = async (preferredWallet?: "core" | "metamask") => {
+    const provider = resolveInjectedProvider(preferredWallet);
+
+    if (!provider) {
+      alert("No Web3 wallet extension found. Please install Avalanche Core Wallet or MetaMask.");
       return;
     }
 
     try {
-      const ethereum = (window as any).ethereum;
-      const accounts = await ethereum.request({ method: "eth_requestAccounts" });
-      const currentChainHex = await ethereum.request({ method: "eth_chainId" });
+      const accounts = await provider.request({ method: "eth_requestAccounts" });
+      if (!accounts || accounts.length === 0) {
+        throw new Error("No accounts authorized.");
+      }
+
+      const currentChainHex = await provider.request({ method: "eth_chainId" });
       const currentCid = parseInt(currentChainHex, 16);
 
       const chain = getViemChain(currentCid);
       const wClient = createWalletClient({
         chain,
-        transport: custom(ethereum),
+        transport: custom(provider),
       });
 
       const userAddr = accounts[0] as `0x${string}`;
@@ -163,16 +190,17 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setChainId(currentCid);
       setIsConnected(true);
 
-      const isCore = !!(ethereum.isAvalanche || ethereum.isCore);
+      const isCore = !!(provider.isAvalanche || provider.isCore);
       setWalletProviderType(isCore ? "core" : "metamask");
 
       if (!(SUPPORTED_CHAIN_IDS as readonly number[]).includes(currentCid)) {
-        setNetworkError(`Mismatched network: Connected to ${currentCid}, expected Avalanche (43114 or 43113)`);
+        setNetworkError(`Mismatched network: Connected to ${currentCid}, expected Avalanche (43113 Fuji or 43114 Mainnet)`);
       } else {
         setNetworkError(null);
       }
     } catch (err: any) {
-      setNetworkError(err.message || "User rejected wallet connection");
+      console.error("Wallet connection error:", err);
+      setNetworkError(err.message || "Wallet request was rejected or failed");
     }
   };
 
@@ -191,7 +219,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     if (!(SUPPORTED_CHAIN_IDS as readonly number[]).includes(selectedChain)) {
       setNetworkError(
-        `Mismatched network: Connected to ${selectedChain}, expected CashLayer Avalanche L1 (${AVALANCHE_MAINNET_CHAIN_ID})`
+        `Mismatched network: Connected to ${selectedChain}, expected Avalanche Fuji (${AVALANCHE_FUJI_CHAIN_ID})`
       );
       setIsConnected(true);
       return;
@@ -205,24 +233,25 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setIsConnected(false);
     setRealAddress(null);
     setWalletClient(null);
-    setWalletProviderType("demo");
+    setWalletProviderType("none");
   };
 
   const switchNetwork = async (targetChainId: number) => {
     setChainId(targetChainId);
-    if (typeof window !== "undefined" && (window as any).ethereum && walletProviderType !== "demo") {
+    const provider = resolveInjectedProvider(walletProviderType === "core" ? "core" : "metamask");
+
+    if (provider && walletProviderType !== "none") {
       try {
         const hex = `0x${targetChainId.toString(16)}`;
-        await (window as any).ethereum.request({
+        await provider.request({
           method: "wallet_switchEthereumChain",
           params: [{ chainId: hex }],
         });
         setNetworkError(null);
       } catch (switchError: any) {
-        // Chain not added error code 4902
         if (switchError.code === 4902) {
           try {
-            await (window as any).ethereum.request({
+            await provider.request({
               method: "wallet_addEthereumChain",
               params: [
                 {
@@ -257,7 +286,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setNetworkError(null);
     } else {
       setNetworkError(
-        `Mismatched network: Connected to ${targetChainId}, expected CashLayer Avalanche L1 (${AVALANCHE_MAINNET_CHAIN_ID})`
+        `Mismatched network: Connected to ${targetChainId}, expected Avalanche Fuji (${AVALANCHE_FUJI_CHAIN_ID})`
       );
     }
   };
@@ -272,7 +301,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           ? {
               ...activeAccount,
               address: realAddress,
-              name: `${walletProviderType === "core" ? "Core" : "MetaMask"} (${realAddress.slice(0, 6)}...${realAddress.slice(-4)})`,
+              name: `${walletProviderType === "core" ? "Core Wallet" : "MetaMask"} (${realAddress.slice(0, 6)}...${realAddress.slice(-4)})`,
             }
           : activeAccount,
         chainId,

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { AuditorPCT } from "@cashlayer/shared";
-import { MockEERCAdapter, BabyJub, Poseidon } from "@cashlayer/eerc-adapter";
+import { BabyJub, Poseidon } from "@cashlayer/eerc-adapter";
 import {
   OnChainBatchRecord,
   OnChainTxLog,
@@ -56,114 +56,25 @@ const PayrollContext = createContext<PayrollContextType | undefined>(undefined);
 export const PayrollProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isRealWalletConnected } = useWallet();
   const [tokenAddress] = useState<`0x${string}`>("0xcccccccccccccccccccccccccccccccccccccccc");
-  const [complianceVerifierAddress] = useState<`0x${string}`>("0xvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv");
-  const [adapter] = useState(() => new MockEERCAdapter({ tokenAddress }));
+  const [complianceVerifierAddress] = useState<`0x${string}`>("0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
 
-  const [authorizedAuditors, setAuthorizedAuditors] = useState<Set<string>>(
-    () => new Set([DEMO_ACCOUNTS.find((a) => a.role === "auditor")?.address.toLowerCase() || ""])
+  const [authorizedAuditors] = useState<Set<string>>(
+    () => new Set([
+      DEMO_ACCOUNTS.find((a) => a.role === "auditor")?.address.toLowerCase() || "",
+      "0x15d34aaf54267db7d7c367839aaf71a00a2c6a65",
+    ])
   );
 
+  // Clean state — no dummy seed clutter
   const [batches, setBatches] = useState<OnChainBatchRecord[]>([]);
   const [txLogs, setTxLogs] = useState<OnChainTxLog[]>([]);
   const [attestations, setAttestations] = useState<ComplianceAttestationRecord[]>([]);
   const [employerBalance, setEmployerBalance] = useState<bigint>(100000000n);
 
-  // Initialize with seed data on mount
-  useEffect(() => {
-    // Seed initial batch for demonstration
-    const seedBatchId: `0x${string}` = "0x8fa40bc78864705a63901b0f592d3080aa98c81ef40763ea119f4a9b60e6e701";
-    const employer = DEMO_ACCOUNTS[0].address;
-    const alice = DEMO_ACCOUNTS[1];
-    const bob = DEMO_ACCOUNTS[2];
-
-    const aliceAmt = 1250000n;
-    const bobAmt = 1100000n;
-
-    // Encrypt for Alice and Auditor
-    const aliceEnc = Poseidon.processPoseidonEncryption({
-      inputs: [aliceAmt],
-      publicKey: alice.babyJubPublicKey,
-      nonce: 101n,
-    });
-    const aliceAuditorEnc = Poseidon.processPoseidonEncryption({
-      inputs: [aliceAmt],
-      publicKey: DEMO_ACCOUNTS[6].babyJubPublicKey,
-      nonce: 102n,
-    });
-
-    const bobEnc = Poseidon.processPoseidonEncryption({
-      inputs: [bobAmt],
-      publicKey: bob.babyJubPublicKey,
-      nonce: 201n,
-    });
-    const bobAuditorEnc = Poseidon.processPoseidonEncryption({
-      inputs: [bobAmt],
-      publicKey: DEMO_ACCOUNTS[6].babyJubPublicKey,
-      nonce: 202n,
-    });
-
-    const tx1: OnChainTxLog = {
-      txHash: "0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b",
-      batchId: seedBatchId,
-      blockNumber: 12054231n,
-      sender: employer,
-      recipient: alice.address,
-      auditorPCT: aliceAuditorEnc.auditorPCT as AuditorPCT,
-      receiverEncryptedAmount: aliceEnc.auditorPCT,
-      calldataPreview: "0xa9059cbb" + "0".repeat(60) + "eerc7proof" + aliceEnc.auditorPCT[0].slice(2, 10),
-      status: 1,
-      gasUsed: 423500n,
-      timestamp: Date.now() - 3600000,
-      zeroPlaintextVerified: true,
-    };
-
-    const tx2: OnChainTxLog = {
-      txHash: "0x2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c",
-      batchId: seedBatchId,
-      blockNumber: 12054232n,
-      sender: employer,
-      recipient: bob.address,
-      auditorPCT: bobAuditorEnc.auditorPCT as AuditorPCT,
-      receiverEncryptedAmount: bobEnc.auditorPCT,
-      calldataPreview: "0xa9059cbb" + "0".repeat(60) + "eerc7proof" + bobEnc.auditorPCT[0].slice(2, 10),
-      status: 1,
-      gasUsed: 421200n,
-      timestamp: Date.now() - 3550000,
-      zeroPlaintextVerified: true,
-    };
-
-    const initialBatch: OnChainBatchRecord = {
-      batchId: seedBatchId,
-      employer,
-      tokenAddress,
-      employeeCount: 2,
-      totalGrossAmount: (aliceAmt + bobAmt).toString(),
-      rosterCommitment: CryptoService.computeRosterCommitment([
-        { address: alice.address, amount: aliceAmt },
-        { address: bob.address, amount: bobAmt },
-      ]),
-      status: "Confirmed",
-      txHashes: [tx1.txHash, tx2.txHash],
-      createdAt: Date.now() - 3700000,
-      confirmedAt: Date.now() - 3500000,
-      recipients: [
-        { address: alice.address, amount: aliceAmt.toString(), department: "Engineering" },
-        { address: bob.address, amount: bobAmt.toString(), department: "Product" },
-      ],
-    };
-
-    setBatches([initialBatch]);
-    setTxLogs([tx1, tx2]);
-  }, [tokenAddress]);
-
   const isAuditorAuthorized = (address: `0x${string}`): boolean => {
     return authorizedAuditors.has(address.toLowerCase());
   };
 
-  /**
-   * Executes the full state machine for payroll batch creation & execution:
-   * Draft -> Ready -> Submitted -> Confirmed
-   */
   const createAndSubmitBatch = async (params: {
     items: WebPayrollItem[];
     employerAddress: `0x${string}`;
@@ -182,23 +93,26 @@ export const PayrollProvider: React.FC<{ children: React.ReactNode }> = ({ child
       );
     }
 
+    // Trigger REAL Web3 wallet popup if MetaMask or Core installed
+    if (typeof window !== "undefined") {
+      const w = window as any;
+      const provider = w.avalanche || w.ethereum;
+      if (provider) {
+        try {
+          const msg = `CashLayer Avalanche Enterprise Payroll Batch\n\nCommitment: ${validation.summary.rosterCommitment}\nEmployees: ${validation.summary.employeeCount}\nTotal: ${validation.summary.totalPlaintextGross.toString()}\nChain: Fuji (43113)`;
+          await provider.request({
+            method: "personal_sign",
+            params: [msg, employerAddress],
+          });
+        } catch (err: any) {
+          throw new Error(`Wallet action cancelled: ${err.message || "User denied signature"}`);
+        }
+      }
+    }
+
     const batchId: `0x${string}` = `0x${Array.from({ length: 64 }, () =>
       Math.floor(Math.random() * 16).toString(16)
     ).join("")}` as `0x${string}`;
-
-    // If real wallet (MetaMask / Core) connected, trigger real wallet signature prompt
-    if (isRealWalletConnected && typeof window !== "undefined" && (window as any).ethereum) {
-      try {
-        const ethereum = (window as any).ethereum;
-        const msg = `CashLayer Avalanche Enterprise Payroll Batch Confirmation\n\nCommitment: ${validation.summary.rosterCommitment}\nEmployees: ${validation.summary.employeeCount}\nTotal: ${validation.summary.totalPlaintextGross.toString()}\nNetwork: Avalanche L1`;
-        await ethereum.request({
-          method: "personal_sign",
-          params: [msg, employerAddress],
-        });
-      } catch (err: any) {
-        throw new Error(`Wallet transaction rejected: ${err.message || "User denied signature"}`);
-      }
-    }
 
     // Step 1: Draft
     const newRecord: OnChainBatchRecord = {
@@ -228,13 +142,13 @@ export const PayrollProvider: React.FC<{ children: React.ReactNode }> = ({ child
     onProgress?.("Ready");
     await new Promise((r) => setTimeout(r, 400));
 
-    // Step 3: Submitted (transfers occurring)
+    // Step 3: Submitted
     newRecord.status = "Submitted";
     setBatches((prev) => prev.map((b) => (b.batchId === batchId ? { ...b, status: "Submitted" } : b)));
     onProgress?.("Submitted");
     await new Promise((r) => setTimeout(r, 500));
 
-    // Step 4: Execute each transfer, generate encrypted ciphertexts for recipient and auditor
+    // Step 4: Execute transfers & generate Poseidon ciphertexts
     const newTxLogs: OnChainTxLog[] = [];
     const txHashes: `0x${string}`[] = [];
     const auditorAcc = DEMO_ACCOUNTS.find((a) => a.role === "auditor") || DEMO_ACCOUNTS[6];
@@ -248,7 +162,6 @@ export const PayrollProvider: React.FC<{ children: React.ReactNode }> = ({ child
       ).join("")}` as `0x${string}`;
       txHashes.push(txHash);
 
-      // Find recipient demo account or derive public key
       const recipientAcc = DEMO_ACCOUNTS.find((a) => a.address.toLowerCase() === item.address.toLowerCase());
       const recPK = recipientAcc ? recipientAcc.babyJubPublicKey : BabyJub.Base8;
 
@@ -264,7 +177,7 @@ export const PayrollProvider: React.FC<{ children: React.ReactNode }> = ({ child
         nonce: BigInt(Date.now() + i + 1000),
       });
 
-      const log: OnChainTxLog = {
+      const txLog: OnChainTxLog = {
         txHash,
         batchId,
         blockNumber: startBlock + BigInt(i),
@@ -272,90 +185,79 @@ export const PayrollProvider: React.FC<{ children: React.ReactNode }> = ({ child
         recipient: item.address,
         auditorPCT: audEnc.auditorPCT as AuditorPCT,
         receiverEncryptedAmount: recEnc.auditorPCT,
-        calldataPreview: `0xa9059cbb${recEnc.auditorPCT[0].slice(2, 10)}${audEnc.auditorPCT[0].slice(2, 10)}`,
+        calldataPreview: "0xa9059cbb" + "0".repeat(60) + "eerc7proof" + recEnc.auditorPCT[0].slice(2, 10),
         status: 1,
-        gasUsed: 420000n + BigInt(Math.floor(Math.random() * 5000)),
+        gasUsed: 420000n + BigInt(i * 1200),
         timestamp: Date.now(),
         zeroPlaintextVerified: true,
       };
 
-      newTxLogs.push(log);
+      newTxLogs.push(txLog);
     }
-
-    // Deduct employer balance
-    setEmployerBalance((prev) => prev - validation.summary!.totalPlaintextGross);
 
     // Step 5: Confirmed
     newRecord.status = "Confirmed";
-    newRecord.txHashes = txHashes;
     newRecord.confirmedAt = Date.now();
+    newRecord.txHashes = txHashes;
 
-    setBatches((prev) =>
-      prev.map((b) => (b.batchId === batchId ? { ...newRecord } : b))
-    );
+    setBatches((prev) => [newRecord, ...prev.filter((b) => b.batchId !== batchId)]);
     setTxLogs((prev) => [...newTxLogs, ...prev]);
+    setEmployerBalance((prev) => prev - validation.summary!.totalPlaintextGross);
     onProgress?.("Confirmed");
 
     return newRecord;
   };
 
-  /**
-   * Retrieves incoming payments for an employee (strictly isolating peer payments).
-   */
-  const getEmployeeIncomingPayments = (
-    employeeAddress: `0x${string}`
-  ): EmployeeIncomingPayment[] => {
-    const lower = employeeAddress.toLowerCase();
-    const employeeAcc = DEMO_ACCOUNTS.find((a) => a.address.toLowerCase() === lower);
-
+  const getEmployeeIncomingPayments = (employeeAddress: `0x${string}`): EmployeeIncomingPayment[] => {
     return txLogs
-      .filter((l) => l.recipient.toLowerCase() === lower && l.status === 1)
-      .map((log) => {
-        let decAmount = 0n;
+      .filter((l) => l.recipient.toLowerCase() === employeeAddress.toLowerCase())
+      .map((l) => {
+        let decAmt = 0n;
+        const employeeAcc = DEMO_ACCOUNTS.find(
+          (a) => a.address.toLowerCase() === employeeAddress.toLowerCase()
+        );
         if (employeeAcc) {
           try {
-            decAmount = CryptoService.decryptCiphertext(
+            decAmt = CryptoService.decryptCiphertext(
               employeeAcc.babyJubSecret,
-              log.receiverEncryptedAmount
+              l.receiverEncryptedAmount
             );
           } catch {
-            decAmount = 0n;
+            decAmt = 0n;
           }
         }
+
         return {
-          txHash: log.txHash,
-          batchId: log.batchId,
-          blockNumber: log.blockNumber,
-          sender: log.sender,
-          decryptedAmount: decAmount,
-          timestamp: log.timestamp,
+          txHash: l.txHash,
+          batchId: l.batchId,
+          sender: l.sender,
+          receiverEncryptedAmount: l.receiverEncryptedAmount,
+          decryptedAmount: decAmt,
+          blockNumber: l.blockNumber,
+          timestamp: l.timestamp,
           proofVerified: true,
         };
       });
   };
 
-  /**
-   * Computes current confidential balance by decrypting all incoming payments.
-   */
-  const getEmployeeBalance = (employeeAddress: `0x${string}`, viewingKey: string): bigint => {
-    const lower = employeeAddress.toLowerCase();
-    let total = 0n;
-    const incoming = txLogs.filter((l) => l.recipient.toLowerCase() === lower && l.status === 1);
+  const getEmployeeBalance = (employeeAddress: `0x${string}`, viewingKeyStr: string): bigint => {
+    const relevant = txLogs.filter(
+      (l) => l.recipient.toLowerCase() === employeeAddress.toLowerCase()
+    );
 
-    for (const log of incoming) {
+    let sum = 0n;
+    for (const log of relevant) {
       try {
-        const amt = CryptoService.decryptCiphertext(viewingKey, log.receiverEncryptedAmount);
-        total += amt;
+        const dec = CryptoService.decryptCiphertext(viewingKeyStr, log.receiverEncryptedAmount);
+        sum += dec;
       } catch {
-        // Viewing key mismatch
+        // ignore invalid keys
       }
     }
-    return total;
+
+    return sum;
   };
 
-  /**
-   * Auditor reconciliation: decrypts uint256[7] auditorPCT for target batch
-   */
   const reconcileAuditorBatch = (
     batchId: `0x${string}`,
     auditorAddress: `0x${string}`,
@@ -368,31 +270,28 @@ export const PayrollProvider: React.FC<{ children: React.ReactNode }> = ({ child
         isCompliant: false,
         totalDecrypted: 0n,
         expectedTotal: 0n,
-        discrepancies: ["Auditor is not authorized or registered on ComplianceVerifier"],
+        discrepancies: ["Auditor not authorized in ComplianceVerifier contract"],
         reportHash: "0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`,
         reconciledTxs: [],
       };
     }
 
-    const batch = batches.find((b) => b.batchId.toLowerCase() === batchId.toLowerCase());
-    const expectedTotal = batch ? BigInt(batch.totalGrossAmount) : 0n;
+    const targetBatch = batches.find((b) => b.batchId.toLowerCase() === batchId.toLowerCase());
+    const relevantLogs = txLogs.filter((l) => l.batchId.toLowerCase() === batchId.toLowerCase());
 
-    const relevantLogs = txLogs.filter(
-      (l) => l.batchId.toLowerCase() === batchId.toLowerCase() && l.status === 1
-    );
-
+    const expectedTotal = targetBatch ? BigInt(targetBatch.totalGrossAmount) : 0n;
     let totalDecrypted = 0n;
     const reconciledTxs: AuditorReconciliationItem[] = [];
 
     for (const log of relevantLogs) {
       try {
-        const decAmt = CryptoService.decryptCiphertext(auditorKey, log.auditorPCT);
-        totalDecrypted += decAmt;
+        const dec = CryptoService.decryptCiphertext(auditorKey, log.auditorPCT);
+        totalDecrypted += dec;
         reconciledTxs.push({
           txHash: log.txHash,
           sender: log.sender,
           recipient: log.recipient,
-          decryptedAmount: decAmt,
+          decryptedAmount: dec,
           blockNumber: log.blockNumber,
           isMatch: true,
         });
@@ -434,9 +333,6 @@ export const PayrollProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
   };
 
-  /**
-   * One-click on-chain compliance attestation submission
-   */
   const submitComplianceAttestation = async (params: {
     batchId: `0x${string}`;
     auditorAddress: `0x${string}`;
@@ -445,17 +341,19 @@ export const PayrollProvider: React.FC<{ children: React.ReactNode }> = ({ child
     totalDecrypted: bigint;
     expectedTotal: bigint;
   }): Promise<ComplianceAttestationRecord> => {
-    // If real wallet connected, trigger transaction confirmation prompt in MetaMask / Core
-    if (isRealWalletConnected && typeof window !== "undefined" && (window as any).ethereum) {
-      try {
-        const ethereum = (window as any).ethereum;
-        const msg = `CashLayer Compliance Verification Attestation\n\nBatch ID: ${params.batchId}\nReport Hash: ${params.reportHash}\nStatus: ${params.isCompliant ? "COMPLIANT" : "NON-COMPLIANT"}\nTotal Decrypted: ${params.totalDecrypted.toString()}`;
-        await ethereum.request({
-          method: "personal_sign",
-          params: [msg, params.auditorAddress],
-        });
-      } catch (err: any) {
-        throw new Error(`Attestation rejected in wallet: ${err.message || "User denied signature"}`);
+    if (typeof window !== "undefined") {
+      const w = window as any;
+      const provider = w.avalanche || w.ethereum;
+      if (provider) {
+        try {
+          const msg = `Compliance Attestation on Avalanche L1\nBatch ID: ${params.batchId}\nReport: ${params.reportHash}\nStatus: ${params.isCompliant ? "COMPLIANT" : "NON-COMPLIANT"}`;
+          await provider.request({
+            method: "personal_sign",
+            params: [msg, params.auditorAddress],
+          });
+        } catch (err: any) {
+          throw new Error(`Attestation rejected: ${err.message || "User denied signature"}`);
+        }
       }
     }
 
