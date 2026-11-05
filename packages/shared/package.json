@@ -1,0 +1,26 @@
+{
+  "name": "@cashlayer/shared",
+  "version": "0.1.0",
+  "description": "Shared TypeScript domain models, schemas, and constants for CashLayer Private Payroll",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "npx tsx test/validation.test.ts"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  },
+  "keywords": [
+    "avalanche",
+    "eerc",
+    "payroll",
+    "zk",
+    "shared"
+  ],
+  "author": "CashLayer Team",
+  "license": "MIT"
+}
