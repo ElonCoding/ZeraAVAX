@@ -1,0 +1,30 @@
+{
+  "name": "@cashlayer/eerc-adapter",
+  "version": "0.1.0",
+  "description": "Cryptographic eERC Protocol Adapter & Compliance Auditor for CashLayer Private Payroll",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test:crypto": "npx tsx test/crypto.test.ts",
+    "test:adapter": "npx tsx test/adapter.test.ts",
+    "test": "npx tsx test/crypto.test.ts && npx tsx test/adapter.test.ts"
+  },
+  "dependencies": {
+    "@cashlayer/shared": "^0.1.0",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  },
+  "keywords": [
+    "avalanche",
+    "eerc",
+    "cryptography",
+    "babyjubjub",
+    "poseidon",
+    "elgamal"
+  ],
+  "author": "CashLayer Team",
+  "license": "MIT"
+}
