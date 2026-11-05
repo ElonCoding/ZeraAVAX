@@ -1,0 +1,12 @@
+{
+  "name": "@cashlayer/contracts",
+  "version": "0.1.0",
+  "description": "Foundry smart contract suite for CashLayer Private Payroll",
+  "private": true,
+  "scripts": {
+    "build": "node -e \"const { execSync } = require('child_process'); const p = process.env.USERPROFILE + '\\\\.foundry\\\\bin;' + process.env.PATH; execSync('forge build', { env: { ...process.env, PATH: p }, stdio: 'inherit' });\"",
+    "test": "node -e \"const { execSync } = require('child_process'); const p = process.env.USERPROFILE + '\\\\.foundry\\\\bin;' + process.env.PATH; execSync('forge test -vvv', { env: { ...process.env, PATH: p }, stdio: 'inherit' });\"",
+    "clean": "node -e \"const { execSync } = require('child_process'); const p = process.env.USERPROFILE + '\\\\.foundry\\\\bin;' + process.env.PATH; execSync('forge clean', { env: { ...process.env, PATH: p }, stdio: 'inherit' });\""
+  },
+  "license": "MIT"
+}
