@@ -1,0 +1,31 @@
+{
+  "name": "cashlayer-private-payroll",
+  "version": "0.1.0",
+  "description": "CashLayer Private Payroll on Avalanche L1 using eERC Standard",
+  "private": true,
+  "workspaces": [
+    "contracts",
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run --workspaces --if-present build",
+    "test": "npm run --workspaces --if-present test",
+    "lint": "npm run --workspaces --if-present lint",
+    "contracts:build": "node -e \"const { execSync } = require('child_process'); const p = process.env.USERPROFILE + '\\\\.foundry\\\\bin;' + process.env.PATH; execSync('forge build', { cwd: 'contracts', env: { ...process.env, PATH: p }, stdio: 'inherit' });\"",
+    "contracts:test": "node -e \"const { execSync } = require('child_process'); const p = process.env.USERPROFILE + '\\\\.foundry\\\\bin;' + process.env.PATH; execSync('forge test -vvv', { cwd: 'contracts', env: { ...process.env, PATH: p }, stdio: 'inherit' });\"",
+    "contracts:clean": "node -e \"const { execSync } = require('child_process'); const p = process.env.USERPROFILE + '\\\\.foundry\\\\bin;' + process.env.PATH; execSync('forge clean', { cwd: 'contracts', env: { ...process.env, PATH: p }, stdio: 'inherit' });\""
+  },
+  "keywords": [
+    "avalanche",
+    "l1",
+    "eerc",
+    "private-payroll",
+    "zero-knowledge",
+    "babyjubjub",
+    "poseidon",
+    "elgamal"
+  ],
+  "author": "CashLayer Team",
+  "license": "MIT"
+}
