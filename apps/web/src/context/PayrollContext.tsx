@@ -11,6 +11,7 @@ import {
 } from "../types";
 import { CryptoService } from "../services/cryptoService";
 import { DEMO_ACCOUNTS } from "../data/demoAccounts";
+import { useWallet } from "./WalletContext";
 
 interface PayrollContextType {
   tokenAddress: `0x${string}`;
@@ -53,6 +54,7 @@ interface PayrollContextType {
 const PayrollContext = createContext<PayrollContextType | undefined>(undefined);
 
 export const PayrollProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isRealWalletConnected } = useWallet();
   const [tokenAddress] = useState<`0x${string}`>("0xcccccccccccccccccccccccccccccccccccccccc");
   const [complianceVerifierAddress] = useState<`0x${string}`>("0xvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv");
   const [adapter] = useState(() => new MockEERCAdapter({ tokenAddress }));
@@ -183,6 +185,20 @@ export const PayrollProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const batchId: `0x${string}` = `0x${Array.from({ length: 64 }, () =>
       Math.floor(Math.random() * 16).toString(16)
     ).join("")}` as `0x${string}`;
+
+    // If real wallet (MetaMask / Core) connected, trigger real wallet signature prompt
+    if (isRealWalletConnected && typeof window !== "undefined" && (window as any).ethereum) {
+      try {
+        const ethereum = (window as any).ethereum;
+        const msg = `CashLayer Avalanche Enterprise Payroll Batch Confirmation\n\nCommitment: ${validation.summary.rosterCommitment}\nEmployees: ${validation.summary.employeeCount}\nTotal: ${validation.summary.totalPlaintextGross.toString()}\nNetwork: Avalanche L1`;
+        await ethereum.request({
+          method: "personal_sign",
+          params: [msg, employerAddress],
+        });
+      } catch (err: any) {
+        throw new Error(`Wallet transaction rejected: ${err.message || "User denied signature"}`);
+      }
+    }
 
     // Step 1: Draft
     const newRecord: OnChainBatchRecord = {
@@ -429,6 +445,20 @@ export const PayrollProvider: React.FC<{ children: React.ReactNode }> = ({ child
     totalDecrypted: bigint;
     expectedTotal: bigint;
   }): Promise<ComplianceAttestationRecord> => {
+    // If real wallet connected, trigger transaction confirmation prompt in MetaMask / Core
+    if (isRealWalletConnected && typeof window !== "undefined" && (window as any).ethereum) {
+      try {
+        const ethereum = (window as any).ethereum;
+        const msg = `CashLayer Compliance Verification Attestation\n\nBatch ID: ${params.batchId}\nReport Hash: ${params.reportHash}\nStatus: ${params.isCompliant ? "COMPLIANT" : "NON-COMPLIANT"}\nTotal Decrypted: ${params.totalDecrypted.toString()}`;
+        await ethereum.request({
+          method: "personal_sign",
+          params: [msg, params.auditorAddress],
+        });
+      } catch (err: any) {
+        throw new Error(`Attestation rejected in wallet: ${err.message || "User denied signature"}`);
+      }
+    }
+
     const txHash: `0x${string}` = `0x${Array.from({ length: 64 }, () =>
       Math.floor(Math.random() * 16).toString(16)
     ).join("")}` as `0x${string}`;
