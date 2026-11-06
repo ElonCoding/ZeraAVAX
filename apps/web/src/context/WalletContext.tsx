@@ -5,6 +5,8 @@ import {
   AVALANCHE_MAINNET_CHAIN_ID,
   AVALANCHE_FUJI_CHAIN_ID,
   LOCAL_ANVIL_CHAIN_ID,
+  ELONDADA_CHAIN_ID,
+  DEFAULT_ELONDADA_RPC,
   SUPPORTED_CHAIN_IDS,
 } from "@cashlayer/shared";
 import {
@@ -27,9 +29,19 @@ const anvilChain: Chain = {
   },
 };
 
+const elonDadaChain: Chain = {
+  id: ELONDADA_CHAIN_ID,
+  name: "ElonDADA L1",
+  nativeCurrency: { name: "ElonDADA", symbol: "ELDA", decimals: 18 },
+  rpcUrls: {
+    default: { http: [DEFAULT_ELONDADA_RPC] },
+  },
+};
+
 const getViemChain = (cid: number): Chain => {
   if (cid === AVALANCHE_FUJI_CHAIN_ID) return avalancheFuji;
   if (cid === LOCAL_ANVIL_CHAIN_ID) return anvilChain;
+  if (cid === ELONDADA_CHAIN_ID) return elonDadaChain;
   return avalanche;
 };
 
@@ -194,7 +206,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setWalletProviderType(isCore ? "core" : "metamask");
 
       if (!(SUPPORTED_CHAIN_IDS as readonly number[]).includes(currentCid)) {
-        setNetworkError(`Mismatched network: Connected to ${currentCid}, expected Avalanche (43113 Fuji or 43114 Mainnet)`);
+        setNetworkError(`Mismatched network: Connected to chain ${currentCid}. Expected ElonDADA (111522), Fuji (43113), or Mainnet (43114).`);
       } else {
         setNetworkError(null);
       }
@@ -251,23 +263,21 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       } catch (switchError: any) {
         if (switchError.code === 4902) {
           try {
+            const chainMeta: Record<number, { name: string; rpc: string; explorer: string; symbol: string }> = {
+              [AVALANCHE_FUJI_CHAIN_ID]: { name: "Avalanche Fuji Testnet", rpc: "https://api.avax-test.network/ext/bc/C/rpc", explorer: "https://testnet.snowtrace.io", symbol: "AVAX" },
+              [AVALANCHE_MAINNET_CHAIN_ID]: { name: "Avalanche C-Chain", rpc: "https://api.avax.network/ext/bc/C/rpc", explorer: "https://snowtrace.io", symbol: "AVAX" },
+              [ELONDADA_CHAIN_ID]: { name: "ElonDADA L1 (Testnet)", rpc: DEFAULT_ELONDADA_RPC, explorer: "https://explorer-test.avax.network", symbol: "ELDA" },
+            };
+            const meta = chainMeta[targetChainId] ?? chainMeta[AVALANCHE_FUJI_CHAIN_ID];
             await provider.request({
               method: "wallet_addEthereumChain",
               params: [
                 {
                   chainId: `0x${targetChainId.toString(16)}`,
-                  chainName: targetChainId === AVALANCHE_FUJI_CHAIN_ID ? "Avalanche Fuji Testnet" : "Avalanche C-Chain",
-                  nativeCurrency: { name: "AVAX", symbol: "AVAX", decimals: 18 },
-                  rpcUrls: [
-                    targetChainId === AVALANCHE_FUJI_CHAIN_ID
-                      ? "https://api.avax-test.network/ext/bc/C/rpc"
-                      : "https://api.avax.network/ext/bc/C/rpc",
-                  ],
-                  blockExplorerUrls: [
-                    targetChainId === AVALANCHE_FUJI_CHAIN_ID
-                      ? "https://testnet.snowtrace.io"
-                      : "https://snowtrace.io",
-                  ],
+                  chainName: meta.name,
+                  nativeCurrency: { name: meta.symbol, symbol: meta.symbol, decimals: 18 },
+                  rpcUrls: [meta.rpc],
+                  blockExplorerUrls: [meta.explorer],
                 },
               ],
             });

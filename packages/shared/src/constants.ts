@@ -11,16 +11,19 @@ import { Point } from "./types.js";
 export const AVALANCHE_MAINNET_CHAIN_ID = 43114;
 export const AVALANCHE_FUJI_CHAIN_ID = 43113;
 export const LOCAL_ANVIL_CHAIN_ID = 31337;
+export const ELONDADA_CHAIN_ID = 111522;
 
 export const SUPPORTED_CHAIN_IDS = [
   AVALANCHE_MAINNET_CHAIN_ID,
   AVALANCHE_FUJI_CHAIN_ID,
   LOCAL_ANVIL_CHAIN_ID,
+  ELONDADA_CHAIN_ID,
 ] as const;
 
 export const DEFAULT_AVALANCHE_RPC = "https://api.avax.network/ext/bc/C/rpc";
 export const DEFAULT_FUJI_RPC = "https://api.avax-test.network/ext/bc/C/rpc";
 export const DEFAULT_LOCAL_RPC = "http://127.0.0.1:8545";
+export const DEFAULT_ELONDADA_RPC = "https://managed-nodes.avax.network/ext/bc/WYctLHxtpdiEqx7sKmCQ4AbrHgtVJtmEFmAs7RG613ihxRi3G/rpc";
 
 // ===========================================================================
 // Cryptographic Curve & Field Constants

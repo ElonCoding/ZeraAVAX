@@ -55,8 +55,8 @@ const PayrollContext = createContext<PayrollContextType | undefined>(undefined);
 
 export const PayrollProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isRealWalletConnected } = useWallet();
-  const [tokenAddress] = useState<`0x${string}`>("0xcccccccccccccccccccccccccccccccccccccccc");
-  const [complianceVerifierAddress] = useState<`0x${string}`>("0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+  const [tokenAddress] = useState<`0x${string}`>("0x8f4311B301E673a5B2f908C311e8B2670F25bCF0");
+  const [complianceVerifierAddress] = useState<`0x${string}`>("0x83676BF625BfFfAD3651A0A25d1cBF87F338D1c2");
 
   const [authorizedAuditors] = useState<Set<string>>(
     () => new Set([
