@@ -13,9 +13,14 @@
   "dependencies": {
     "@cashlayer/eerc-adapter": "^0.1.0",
     "@cashlayer/shared": "^0.1.0",
+    "@react-three/drei": "^10.7.9",
+    "@react-three/fiber": "^9.8.2",
+    "@types/three": "^0.187.0",
     "lucide-react": "^0.395.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-router-dom": "^7.18.5",
+    "three": "^0.187.0",
     "viem": "^2.21.0"
   },
   "devDependencies": {
